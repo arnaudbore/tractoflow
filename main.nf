@@ -18,7 +18,9 @@ if(params.help) {
                 "sh_fitting_basis":"$params.sh_fitting_basis",
                 "sh_fitting_order":"$params.sh_fitting_order",
                 "b0_thr_extract_b0":"$params.b0_thr_extract_b0",
+                "run_resample_bvals":"$params.run_resample_bvals",
                 "dwi_shell_tolerance":"$params.dwi_shell_tolerance",
+                "bvals_to_extract":"$params.bvals_to_extract",
                 "dilate_b0_mask_prelim_brain_extraction":"$params.dilate_b0_mask_prelim_brain_extraction",
                 "bet_prelim_f":"$params.bet_prelim_f",
                 "run_dwi_denoising":"$params.run_dwi_denoising",
@@ -323,8 +325,9 @@ else{
 }
 
 gradients
-    .into{gradients_for_prelim_bet; gradients_for_eddy; gradients_for_topup;
-          gradients_for_eddy_topup}
+    .into{gradients_for_test_resample_bvals; gradients_for_resample_bvals;
+          gradients_for_prelim_bet;
+          gradients_for_eddy; gradients_for_topup; gradients_for_eddy_topup}
 
 readout_encoding
     .into{readout_encoding_for_topup; readout_encoding_for_eddy;
@@ -357,6 +360,26 @@ process README {
     echo "$list_options" >> readme.txt
     """
 }
+
+process Resample_bvals {
+    cpus 2
+
+    input:
+    set sid, file(bval), file(bvec) from gradients_for_resample_bvals
+
+    output:
+    set sid, "${sid}__resample_bval.bval", "${bvec}" into gradients_resampled_bvals
+
+    script:
+    """
+    scil_resample_bvals.py ${bval} $params.bvals_to_extract ${sid}__resample_bval.bval --tolerance $params.dwi_shell_tolerance
+    """
+}
+
+gradients_for_test_resample_bvals
+    .map{it -> if(!params.run_resample_bvals){it}}
+    .mix(gradients_resampled_bvals)
+    .into{gradients_for_prelim_bet; gradients_for_eddy; gradients_for_topup; gradients_for_eddy_topup}
 
 process Bet_Prelim_DWI {
     cpus 2
